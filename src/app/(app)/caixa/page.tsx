@@ -1,19 +1,53 @@
 import type { Metadata } from "next"
-import { Wallet } from "lucide-react"
+import { redirect } from "next/navigation"
 
-import { PlaceholderBloco } from "@/components/placeholder-bloco"
+import { AbrirCaixa } from "./abrir-caixa"
+import { SessaoAberta } from "./sessao-aberta"
+import { SessaoFechada } from "./sessao-fechada"
+import { carregarDadosDoCaixa } from "@/lib/caixa/consultas"
 
 export const metadata: Metadata = {
   title: "Caixa",
 }
 
-export default function PaginaCaixa() {
+/**
+ * Rota única do ciclo de caixa: renderiza um de três estados conforme o turno.
+ * Abrir e fechar não têm rota própria — o operador não navega, ele age.
+ */
+export default async function PaginaCaixa() {
+  const dados = await carregarDadosDoCaixa()
+
+  // Rede de segurança: o proxy já barra o acesso antes de chegar aqui.
+  if (!dados) redirect("/login")
+
+  const { estado, categorias, usuario } = dados
+
+  if (estado.estado === "aberta") {
+    return (
+      <SessaoAberta
+        sessao={estado.sessao}
+        categorias={categorias}
+        usuarioId={usuario.id}
+      />
+    )
+  }
+
+  if (estado.estado === "fechada_hoje") {
+    return (
+      <SessaoFechada
+        sessao={estado.sessao}
+        turnos={estado.turnos}
+        turnoSugeridoId={estado.turnoSugeridoId}
+        usuarioId={usuario.id}
+      />
+    )
+  }
+
   return (
-    <PlaceholderBloco
-      titulo="Caixa"
-      descricao="Abertura do turno, sangrias, suprimentos e fechamento."
-      icone={Wallet}
-      bloco="Bloco 2"
+    <AbrirCaixa
+      turnos={estado.turnos}
+      turnoSugeridoId={estado.turnoSugeridoId}
+      usuarioId={usuario.id}
     />
   )
 }

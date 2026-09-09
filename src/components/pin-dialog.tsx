@@ -25,9 +25,21 @@ export interface PinDialogProps {
   titulo: string
   descricao?: string
   rotuloConfirmar?: string
-  /** Executado somente depois que o servidor confirma o PIN. */
-  aoConfirmar: () => void | Promise<void>
+  /**
+   * Executado somente depois que o servidor confirma o PIN.
+   *
+   * Recebe o PIN digitado para que a ação financeira possa reconferi-lo no
+   * servidor, na mesma operação que grava. Sem isso a autorização dependeria de
+   * o cliente ter recebido `valido: true` num passo anterior, que é justamente
+   * o que não pode acontecer.
+   *
+   * Devolver `{ erro }` mantém o diálogo aberto exibindo a mensagem — é o
+   * caminho para recusas de negócio, como turno que já tem caixa aberto.
+   */
+  aoConfirmar: (pin: string) => ResultadoAutorizacao | Promise<ResultadoAutorizacao>
 }
+
+export type ResultadoAutorizacao = void | { erro?: string }
 
 /**
  * Diálogo de autorização por PIN.
@@ -83,7 +95,16 @@ export function PinDialog({
         return
       }
 
-      await aoConfirmar()
+      const resultado = await aoConfirmar(valor)
+
+      // Recusa de negócio depois do PIN correto: mantém o diálogo aberto para
+      // o operador ler o motivo sem perder o contexto da ação.
+      if (resultado && resultado.erro) {
+        setPin("")
+        setErro(resultado.erro)
+        return
+      }
+
       aoMudarAberto(false)
     } catch {
       setPin("")
