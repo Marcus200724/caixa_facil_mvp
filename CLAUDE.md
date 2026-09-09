@@ -195,9 +195,34 @@ Comportamento definido: **sempre pedir PIN a cada ação**, sem sessão curta de
 ### Estrutura
 
 - Código-fonte em `src/`
-- Client do Supabase em `src/lib/supabase.ts`
 - Componentes shadcn em `src/components/ui/`
 - Alias de import: `@/*`
+
+### Clients do Supabase
+
+Autenticação via `@supabase/ssr`. **Não existe mais um client único em `src/lib/supabase.ts`** — o client singleton do `supabase-js` não faz o handshake de cookies e quebraria a sessão em rota autenticada. São três clients, um por ambiente de execução:
+
+| Arquivo | Onde usar |
+|---|---|
+| `src/lib/supabase/client.ts` | Client Components (`criarClienteBrowser`) |
+| `src/lib/supabase/server.ts` | Server Components, Server Actions e Route Handlers (`criarClienteServidor`) |
+| `src/lib/supabase/middleware.ts` | Renovação de sessão e proteção de rota (`atualizarSessao`) |
+
+`criarClienteServidor` cria um client novo por requisição — ele carrega a sessão do usuário atual e nunca deve ser reaproveitado entre requisições.
+
+As variáveis de ambiente são lidas por `src/lib/supabase/env.ts`.
+
+### Middleware fica em `src/proxy.ts`
+
+O Next.js 16 renomeou a convenção `middleware.ts` para `proxy.ts` e deprecou a antiga. O arquivo na raiz de `src/` chama-se **`src/proxy.ts`** e exporta `proxy` — não crie um `src/middleware.ts`. A lógica de sessão em si mora em `src/lib/supabase/middleware.ts`.
+
+### Criação de empresa passa por RPC
+
+O cadastro da empresa **não** é feito com inserts diretos em `empresas` e `usuarios`. Ele chama a função `criar_empresa_e_dono(p_nome_empresa, p_nome_usuario, p_email)`, que é `SECURITY DEFINER` e retorna o id da empresa.
+
+O motivo é o RLS: no momento em que a empresa é criada o usuário ainda não pertence a nenhuma, então não há policy capaz de autorizar o insert. A função valida a autenticação, recusa quem já está vinculado e cria os dois registros na mesma transação.
+
+Erros chegam como `P0001` (`RAISE EXCEPTION`) e são traduzidos em `src/app/onboarding/acoes.ts`.
 
 ### Variáveis de ambiente
 
